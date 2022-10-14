@@ -5,3 +5,4 @@ torch
 torchvision
 tqdm
 wandb
+ninja
