@@ -7,32 +7,47 @@ from torch.utils.cpp_extension import load
 import os
 
 current_path = os.path.dirname(os.path.realpath(__file__))
-quant_cpu = load(
-    name="quant_cpu",
-    sources=[
-        os.path.join(current_path, "quant_cpu/quant_cpu.cpp"),
-        os.path.join(current_path, "quant_cpu/bit_helper.cpp"),
-        os.path.join(current_path, "quant_cpu/sim_helper.cpp"),
 
-    ],
-    verbose=True,
-)
-
-if torch.cuda.is_available():
-    quant_cuda = load(
-        name="quant_cuda",
+# Try to load CPU extension
+try:
+    quant_cpu = load(
+        name="quant_cpu",
         sources=[
-            os.path.join(current_path, "quant_cuda/quant_cuda.cpp"),
-            os.path.join(current_path, "quant_cuda/bit_helper.cu"),
-            os.path.join(current_path, "quant_cuda/sim_helper.cu"),
-            os.path.join(current_path, "quant_cuda/block_kernel.cu"),
-            os.path.join(current_path, "quant_cuda/float_kernel.cu"),
-            os.path.join(current_path, "quant_cuda/fixed_point_kernel.cu"),
-            os.path.join(current_path, "quant_cuda/quant.cu"),
-            os.path.join(current_path, "quant_cuda/posit_kernel.cu"),
+            os.path.join(current_path, "quant_cpu/quant_cpu.cpp"),
+            os.path.join(current_path, "quant_cpu/bit_helper.cpp"),
+            os.path.join(current_path, "quant_cpu/sim_helper.cpp"),
         ],
-    verbose=True,
+        extra_cflags=['-O3', '-std=c++17', '-fPIC'],
+        extra_ldflags=['-shared'],
+        verbose=True,
     )
+except Exception as e:
+    print(f"Warning: Failed to load CPU extension: {e}")
+    quant_cpu = None
+
+# Try to load CUDA extension if CUDA is available
+if torch.cuda.is_available():
+    try:
+        quant_cuda = load(
+            name="quant_cuda",
+            sources=[
+                os.path.join(current_path, "quant_cuda/quant_cuda.cpp"),
+                os.path.join(current_path, "quant_cuda/bit_helper.cu"),
+                os.path.join(current_path, "quant_cuda/sim_helper.cu"),
+                os.path.join(current_path, "quant_cuda/block_kernel.cu"),
+                os.path.join(current_path, "quant_cuda/float_kernel.cu"),
+                os.path.join(current_path, "quant_cuda/fixed_point_kernel.cu"),
+                os.path.join(current_path, "quant_cuda/quant.cu"),
+                os.path.join(current_path, "quant_cuda/posit_kernel.cu"),
+            ],
+            extra_cflags=['-O3', '-std=c++17', '-fPIC'],
+            extra_cuda_cflags=['-O3', '--use_fast_math', '-std=c++17'],
+            extra_ldflags=['-shared'],
+            verbose=True,
+        )
+    except Exception as e:
+        print(f"Warning: Failed to load CUDA extension: {e}")
+        quant_cuda = quant_cpu
 else:
     quant_cuda = quant_cpu
 
@@ -45,10 +60,12 @@ def assert_wl_fl(wl, fl, stage=""):
 
 
 def get_module(x):
-    if x.is_cuda:
+    if x.is_cuda and quant_cuda is not None:
         quant_module = quant_cuda
-    else:
+    elif quant_cpu is not None:
         quant_module = quant_cpu
+    else:
+        raise ValueError("No valid quantization module found")
     return quant_module
 
 
@@ -120,6 +137,8 @@ def quantizer(
                 forward_quant = lambda x, quant_module: quant_module.posit_quantize_nearest(
                     x, forward_number.nsize, forward_number.es, forward_number.scale
                 )
+        else:
+            forward_quant = lambda x, quant_module: x
     else:
         if type(forward_number) == FixedPoint or forward_number == None:
             assert (
@@ -133,6 +152,8 @@ def quantizer(
                 forward_quant = lambda x, quant_module: quant_module.fixed_point_quantize_stochastic_mask(
                     x, forward_number.wl, forward_number.fl, forward_number.symmetric
                 )
+            else:
+                forward_quant = lambda x, quant_module: x
         else:
             raise ValueError("zeroing clamping gradient only support fixed point.")
 
@@ -153,6 +174,8 @@ def quantizer(
             backward_quant = lambda a, quant_module: quant_module.posit_quantize_nearest(
                 a, backward_number.nsize, backward_number.es, backward_number.scale
             )
+        else:
+            backward_quant = lambda a, quant_module: a
 
     elif backward_rounding == "stochastic":
         if type(backward_number) == BlockFloatingPoint:
@@ -171,6 +194,10 @@ def quantizer(
             backward_quant = lambda a, quant_module: quant_module.posit_quantize_nearest(
                 a, backward_number.nsize, backward_number.es, backward_number.scale
             )
+        else:
+            backward_quant = lambda a, quant_module: a
+    else:
+        backward_quant = lambda a, quant_module: a
 
     if clamping_grad_zero == False:
 
@@ -259,6 +286,8 @@ def fixed_point_quantize(x, wl, fl, clamp=True, symmetric=False, rounding="stoch
         out = quant_module.fixed_point_quantize_nearest(x.contiguous(), wl, fl, clamp, symmetric)
     elif rounding == "stochastic":
         out = quant_module.fixed_point_quantize_stochastic(x.contiguous(), wl, fl, clamp, symmetric)
+    else:
+        out = x
     return out
 
 
@@ -281,6 +310,8 @@ def block_quantize(x, wl, dim=-1, rounding="stochastic"):
         out = quant_module.block_quantize_nearest(x.contiguous(), wl, dim)
     elif rounding == "stochastic":
         out = quant_module.block_quantize_stochastic(x.contiguous(), wl, dim)
+    else:
+        out = x
     return out
 
 
@@ -304,6 +335,8 @@ def float_quantize(x, exp, man, rounding="stochastic"):
         out = quant_module.float_quantize_nearest(x.contiguous(), man, exp)
     elif rounding == "stochastic":
         out = quant_module.float_quantize_stochastic(x.contiguous(), man, exp)
+    else:
+        out = x
     return out
 
 def posit_quantize(x, nsize, es, scale = 1.0, rounding="nearest"):
@@ -328,6 +361,8 @@ def posit_quantize(x, nsize, es, scale = 1.0, rounding="nearest"):
         out = quant_module.posit_quantize_nearest(x.contiguous(), nsize, es, scale)
     elif rounding == "stochastic":
         out = quant_module.posit_quantize_nearest(x.contiguous(), nsize, es, scale) #todo; temporarily use nearest rounding at all time
+    else:
+        out = x
     return out
 
 def posit_sigmoid(x, nsize, es=0, scale = 1.0, rounding="nearest"):
