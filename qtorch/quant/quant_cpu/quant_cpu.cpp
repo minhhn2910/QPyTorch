@@ -62,12 +62,12 @@ T clamp_mask_helper(T a, T min, T max, uint8_t *mask)
 std::tuple<Tensor, Tensor> fixed_point_quantize_stochastic_mask(Tensor a, int wl, int fl, bool symmetric)
 {
   CHECK_INPUT(a);
-  auto r = rand_like(a);
+  auto r = torch::rand_like(a);
   auto a_array = a.data_ptr<float>();
   auto r_array = r.data_ptr<float>();
-  auto o = zeros_like(a);
+  auto o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
-  auto m = zeros_like(a, torch::CPU(kByte));
+  auto m = torch::zeros_like(a, torch::TensorOptions().dtype(torch::kUInt8));
   auto m_array = m.data_ptr<uint8_t>();
   int64_t size = a.numel();
   int sigma = -fl;
@@ -85,9 +85,9 @@ std::tuple<Tensor, Tensor> fixed_point_quantize_nearest_mask(Tensor a, int wl, i
 {
   CHECK_INPUT(a);
   auto a_array = a.data_ptr<float>();
-  auto o = zeros_like(a);
+  auto o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
-  auto m = zeros_like(a, torch::CPU(kByte));
+  auto m = torch::zeros_like(a, torch::TensorOptions().dtype(torch::kUInt8));
   auto m_array = m.data_ptr<uint8_t>();
   int64_t size = a.numel();
   int sigma = -fl;
@@ -104,22 +104,27 @@ std::tuple<Tensor, Tensor> fixed_point_quantize_nearest_mask(Tensor a, int wl, i
 Tensor fixed_point_quantize_stochastic(Tensor a, int wl, int fl, bool clamp, bool symmetric)
 {
   CHECK_INPUT(a);
-  auto r = rand_like(a);
+  auto r = torch::rand_like(a);
   auto a_array = a.data_ptr<float>();
   auto r_array = r.data_ptr<float>();
-  Tensor o = zeros_like(a);
+  Tensor o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int64_t size = a.numel();
   int sigma = -fl;
   float t_min, t_max;
-  fixed_min_max(wl, fl, symmetric, &t_min, &t_max);
-  for (int64_t i = 0; i < size; i++)
+  if (clamp)
   {
-    o_array[i] = round(a_array[i], r_array[i], sigma);
-    if (clamp)
+    fixed_min_max(wl, fl, symmetric, &t_min, &t_max);
+    for (int64_t i = 0; i < size; i++)
     {
-      o_array[i] = clamp_helper(o_array[i], t_min, t_max);
+      o_array[i] = round(a_array[i], r_array[i], sigma);
+      o_array[i] = clamp_helper<float>(o_array[i], t_min, t_max);
     }
+  }
+  else
+  {
+    for (int64_t i = 0; i < size; i++)
+      o_array[i] = round(a_array[i], r_array[i], sigma);
   }
   return o;
 }
@@ -128,7 +133,7 @@ Tensor fixed_point_quantize_nearest(Tensor a, int wl, int fl, bool clamp, bool s
 {
   CHECK_INPUT(a);
   auto a_array = a.data_ptr<float>();
-  Tensor o = zeros_like(a);
+  Tensor o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int64_t size = a.numel();
   int sigma = -fl;
@@ -218,7 +223,7 @@ Tensor block_quantize_nearest(Tensor a, int wl, int dim)
 {
   CHECK_INPUT(a);
   auto a_array = a.data_ptr<float>();
-  Tensor o = zeros_like(a);
+  Tensor o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int64_t size = a.numel();
 
@@ -233,7 +238,7 @@ Tensor block_quantize_stochastic(Tensor a, int wl, int dim)
 {
   CHECK_INPUT(a);
   auto a_array = a.data_ptr<float>();
-  Tensor o = zeros_like(a);
+  Tensor o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int64_t size = a.numel();
 
@@ -249,7 +254,7 @@ Tensor float_quantize_stochastic(Tensor a, int man_bits, int exp_bits)
 {
   // use external random number right now
   auto a_array = a.data_ptr<float>();
-  auto o = zeros_like(a);
+  auto o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int size = a.numel();
 
@@ -269,7 +274,7 @@ Tensor float_quantize_stochastic(Tensor a, int man_bits, int exp_bits)
 Tensor float_quantize_nearest(Tensor a, int man_bits, int exp_bits)
 {
   auto a_array = a.data_ptr<float>();
-  auto o = zeros_like(a);
+  auto o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int size = a.numel();
 
@@ -455,7 +460,7 @@ fp16 fp32tofp16(float f,  uint32_t* int32_constants, uint64_t* int64_constants) 
 Tensor posit_quantize_nearest(Tensor a, int nsize, int es, float scale)
 {
   auto a_array = a.data_ptr<float>();
-  auto o = zeros_like(a);
+  auto o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int size = a.numel();
   uint32_t	int32_constants[ 11 ];
@@ -486,7 +491,7 @@ fp16 compute_sigmoid(fp16 p) {
 Tensor posit_sigmoid(Tensor a, int nsize, int es, float scale)
 {
   auto a_array = a.data_ptr<float>();
-  auto o = zeros_like(a);
+  auto o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int size = a.numel();
   uint32_t	int32_constants[ 11 ];
@@ -516,7 +521,7 @@ Tensor posit_sigmoid(Tensor a, int nsize, int es, float scale)
 Tensor posit_tanh(Tensor a, int nsize, int es, float scale)
 {
   auto a_array = a.data_ptr<float>();
-  auto o = zeros_like(a);
+  auto o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int size = a.numel();
   uint32_t	int32_constants[ 11 ];
@@ -549,7 +554,7 @@ Tensor posit_tanh(Tensor a, int nsize, int es, float scale)
 Tensor posit_tanh_enhanced(Tensor a, int nsize, int es, float scale)
 {
   auto a_array = a.data_ptr<float>();
-  auto o = zeros_like(a);
+  auto o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int size = a.numel();
   uint32_t	int32_constants[ 11 ];
@@ -594,7 +599,7 @@ Tensor posit_tanh_enhanced(Tensor a, int nsize, int es, float scale)
 Tensor posit_tanh_enhanced(Tensor a, int nsize, int es, float scale)
 {
   auto a_array = a.data_ptr<float>();
-  auto o = zeros_like(a);
+  auto o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int size = a.numel();
   uint32_t	int32_constants[ 11 ];
@@ -746,7 +751,7 @@ float act_format_quantize_nearest(float input){
 Tensor new_format_quantize(Tensor a, float scale)
 {
   auto a_array = a.data_ptr<float>();
-  auto o = zeros_like(a);
+  auto o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int size = a.numel();
 
@@ -767,7 +772,7 @@ Tensor new_format_quantize(Tensor a, float scale)
 Tensor act_format_quantize(Tensor a, float scale)
 {
   auto a_array = a.data_ptr<float>();
-  auto o = zeros_like(a);
+  auto o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int size = a.numel();
 
@@ -788,7 +793,7 @@ Tensor act_format_quantize(Tensor a, float scale)
 Tensor configurable_table_quantize(Tensor a, Tensor lookup_table, float scale)
 {
   auto a_array = a.data_ptr<float>();
-  auto o = zeros_like(a);
+  auto o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int size = a.numel();
 
@@ -811,7 +816,7 @@ Tensor configurable_table_quantize(Tensor a, Tensor lookup_table, float scale)
 Tensor configurable_table_quantize_rounding_hint(Tensor a, Tensor lookup_table, Tensor rounding_hint, float scale)
 {
   auto a_array = a.data_ptr<float>();
-  auto o = zeros_like(a);
+  auto o = torch::zeros_like(a);
   auto o_array = o.data_ptr<float>();
   int size = a.numel();
 
