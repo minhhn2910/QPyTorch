@@ -483,6 +483,25 @@ Tensor posit_quantize_nearest(Tensor a, int nsize, int es, float scale)
   return o;
 }
 
+uint16_t convert_from_float_to_posit(Tensor a, int nsize, int es, float scale)
+{
+  auto a_array = a.data_ptr<float>();
+  auto o = torch::zeros_like(a);
+  auto o_array = o.data_ptr<fp16>();
+  int size = a.numel();
+  uint32_t	int32_constants[ 11 ];
+  uint64_t	int64_constants[ 2 ];
+
+  generate_posit_constants(nsize, es, int32_constants, int64_constants);
+
+  for (int64_t i = 0; i < size; i++)
+  {
+    o_array[i] = fp32tofp16(a_array[i], int32_constants, int64_constants);
+  }
+
+  return o_array[0];
+}
+
 fp16 compute_sigmoid(fp16 p) {
     p ^= 0x8000;
     return p >> 2;
@@ -857,5 +876,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
   m.def("act_format_quantize", &act_format_quantize, "New table-lookup Format (Activation CPU)");
   m.def("configurable_table_quantize", &configurable_table_quantize, "Configurable table-lookup Format (CPU)");
   m.def("configurable_table_quantize_rounding_hint", &configurable_table_quantize_rounding_hint, "Configurable table-lookup Format with hints for rounding for every interval (CPU)");
+  m.def("convert_from_float_to_posit", &convert_from_float_to_posit, "Convert a float tensor into a posit tensor (CPU)");
 //  m.def("posit_tanh_enhanced2", &posit_tanh_enhanced2, "Low-Bitwidth Posit Tanh (CPU)");
 }

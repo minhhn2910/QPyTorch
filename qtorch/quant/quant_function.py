@@ -51,7 +51,7 @@ if torch.cuda.is_available():
 else:
     quant_cuda = quant_cpu
 
-__all__ = ["fixed_point_quantize", "block_quantize", "float_quantize", "quantizer", "posit_quantize", "posit_sigmoid", "posit_tanh", "posit_tanh_enhanced", "new_format_quantize", "act_format_quantize", "configurable_table_quantize", "configurable_table_quantize_rounding_hint", "configurable_table_quantize_geomean"]
+__all__ = ["fixed_point_quantize", "block_quantize", "float_quantize", "quantizer", "posit_quantize", "convert_to_posit", "posit_sigmoid", "posit_tanh", "posit_tanh_enhanced", "new_format_quantize", "act_format_quantize", "configurable_table_quantize", "configurable_table_quantize_rounding_hint", "configurable_table_quantize_geomean"]
 
 
 def assert_wl_fl(wl, fl, stage=""):
@@ -117,7 +117,7 @@ def quantizer(
                     x, forward_number.man, forward_number.exp
                 )
             elif type(forward_number) == Posit:
-                forward_quant = lambda x, quant_module: quant_module.posit_quantize_nearest(
+                forward_quant = lambda x, quant_module: quant_module._nearest(
                     x, forward_number.nsize, forward_number.es, forward_number.scale
                 )
         elif forward_rounding == "stochastic":
@@ -363,6 +363,24 @@ def posit_quantize(x, nsize, es, scale = 1.0, rounding="nearest"):
         out = quant_module.posit_quantize_nearest(x.contiguous(), nsize, es, scale) #todo; temporarily use nearest rounding at all time
     else:
         out = x
+    return out
+
+def convert_to_posit(x, nsize, es, scale = 1.0):
+    """
+    Quantize a single precision Floating Point into low-precision posit
+
+    Args:
+        - :attr: `x` (torch.Tensor) : the single precision number(torch.Tensor) to be quantized
+        - :attr: `nsize` (int) : number of bits allocated for the posit format
+        - :attr: `es` (int) : number of bits allocated for es field (exponent)
+        - conventional: posit(8,2): 8 bits posit with 2 bits exponent es
+
+    Returns:
+        - a quantized low-precision posit tensor (torch.Tensor)
+    """
+    assert isinstance(x, torch.Tensor), "x is not a single precision Floating Point Tensor"
+    quant_module = get_module(x)
+    out = quant_module.convert_from_float_to_posit(x.contiguous(), nsize, es, scale)
     return out
 
 def posit_sigmoid(x, nsize, es=0, scale = 1.0, rounding="nearest"):

@@ -6,6 +6,7 @@ __all__ = [
     "block_quantize",
     "float_quantize",
     "posit_quantize",
+    "convert_to_posit",
     "quantizer",
     "Quantizer",
 ]
