@@ -483,10 +483,10 @@ Tensor posit_quantize_nearest(Tensor a, int nsize, int es, float scale)
   return o;
 }
 
-uint16_t convert_from_float_to_posit(Tensor a, int nsize, int es, float scale)
+Tensor convert_from_float_to_posit(Tensor a, int nsize, int es, float scale)
 {
   auto a_array = a.data_ptr<float>();
-  auto o = torch::zeros_like(a);
+  auto o = torch::zeros_like(a, torch::kUInt16);
   auto o_array = o.data_ptr<fp16>();
   int size = a.numel();
   uint32_t	int32_constants[ 11 ];
@@ -499,7 +499,7 @@ uint16_t convert_from_float_to_posit(Tensor a, int nsize, int es, float scale)
     o_array[i] = fp32tofp16(a_array[i], int32_constants, int64_constants);
   }
 
-  return o_array[0];
+  return o;
 }
 
 fp16 compute_sigmoid(fp16 p) {

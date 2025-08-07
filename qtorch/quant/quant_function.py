@@ -381,7 +381,7 @@ def convert_to_posit(x, nsize, es, scale = 1.0):
     assert isinstance(x, torch.Tensor), "x is not a single precision Floating Point Tensor"
     quant_module = get_module(x)
     out = quant_module.convert_from_float_to_posit(x.contiguous(), nsize, es, scale)
-    return out
+    return out.to(torch.uint16)
 
 def posit_sigmoid(x, nsize, es=0, scale = 1.0, rounding="nearest"):
     """
