@@ -540,7 +540,7 @@ uint8_t bfloat16ToPosit8(uint16_t bf) {
 	uint8_t temp_p = (regime_and_exp >> (17 - _G_NBITS)); // POSIT_EXTRA_BITS_SHIFT = 16 - nsize + 1 = 9
 
 	//round
-  uint16_t mask = (1 << (16 - _G_NBITS))
+  uint16_t mask = (1 << (16 - _G_NBITS));
 	temp_p += (bool) (regime_and_exp & mask) && ((temp_p & 1) | (regime_and_exp & (mask - 1)));
   if (_G_NBITS != 8)
     temp_p <<= (8 - _G_NBITS);
