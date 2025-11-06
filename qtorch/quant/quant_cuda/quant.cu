@@ -148,6 +148,15 @@ Tensor posit_quantize_nearest_cuda(Tensor a, int nsize, int es, float scale) {
   return o;
 }
 
+Tensor bfloat16_posit8_quantize_nearest_cuda(Tensor a, int nsize, int es, float scale) {
+
+  auto o = zeros_like(a);
+  // @todo
+
+
+  return o;
+}
+
 Tensor newformat_quantize_nearest_cuda(Tensor a, float scale) {
 
   auto o = zeros_like(a);

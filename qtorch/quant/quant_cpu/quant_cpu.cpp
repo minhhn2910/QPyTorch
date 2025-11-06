@@ -469,7 +469,7 @@ fp16 fp32tofp16(float f,  uint32_t* int32_constants, uint64_t* int64_constants) 
  * @return the corresponding bfloat16
  */
 uint16_t posit8ToBfloat16(uint8_t p) {
-  assert(nsize <= 8);
+  assert(_G_NBITS <= 8);
 
 	// get sign
 	bool sign = p & 0x80;
@@ -511,7 +511,7 @@ uint16_t posit8ToBfloat16(uint8_t p) {
  * and the rest of the bits are copied to the posit8's fraction.
  */
 uint8_t bfloat16ToPosit8(uint16_t bf) {
-  assert(nsize <= 8);
+  assert(_G_NBITS <= 8);
   uint8_t p = 0;
 	bool sign = bf & 0x8000;
 	bf &= 0x7FFF;
@@ -573,6 +573,32 @@ Tensor posit_quantize_nearest(Tensor a, int nsize, int es, float scale)
 
     o_array[i] = temp_input/scale;
 
+  }
+
+  return o;
+}
+
+Tensor bfloat16_posit8_quantize_nearest(Tensor a, int nsize, int es, float scale)
+{
+  auto a_array = a.data_ptr<torch::BFloat16>();
+  auto o = torch::zeros_like(a);
+  auto o_array = o.data_ptr<torch::BFloat16>();
+  int size = a.numel();
+  uint32_t int32_constants[11];
+  uint64_t int64_constants[2];
+
+  generate_posit_constants(nsize, es, int32_constants, int64_constants);
+
+  for (int64_t i = 0; i < size; i++)
+  {
+    auto temp_input = torch::BFloat16(float(a_array[i]) * scale);
+
+    uint8_t temp = bfloat16ToPosit8(temp_input.x, int32_constants, int64_constants);
+    uint16_t posit = posit8ToBfloat16(temp, int32_constants, int64_constants);
+
+    torch::BFloat16 bf = torch::BFloat16(posit);
+
+    o_array[i] = torch::BFloat16(float(bf) / scale);
   }
 
   return o;
@@ -964,6 +990,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
   m.def("block_quantize_nearest", &block_quantize_nearest, "Block Floating Point Number Nearest Neighbor Quantization (CPU)");
   m.def("float_quantize_nearest", &float_quantize_nearest, "Low-Bitwidth Floating Point Number Nearest Neighbor Quantization (CPU)");
   m.def("posit_quantize_nearest", &posit_quantize_nearest, "Low-Bitwidth Posit Quantization (CPU)");
+  m.def("bfloat16_posit8_quantize_nearest", &bfloat16_posit8_quantize_nearest, "Low-Bitwidth (>= 8) Posit Quantization for bfloat16 (CPU)");
   m.def("posit_sigmoid", &posit_sigmoid, "Low-Bitwidth Posit Sigmoid (CPU)");
   m.def("posit_tanh", &posit_tanh, "Low-Bitwidth Posit Tanh (CPU)");
   m.def("posit_tanh_enhanced", &posit_tanh_enhanced, "Low-Bitwidth Posit Tanh (CPU)");

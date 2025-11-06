@@ -78,6 +78,12 @@ Tensor posit_quantize_nearest(Tensor a, int nsize, int es, float scale)
   return posit_quantize_nearest_cuda(a, nsize, es, scale);
 }
 
+Tensor bfloat16_posit8_quantize_nearest(Tensor a, int nsize, int es, float scale)
+{
+  CHECK_INPUT(a);
+  return bfloat16_posit8_quantize_nearest_cuda(a, nsize, es, scale);
+}
+
 Tensor new_format_quantize(Tensor a, float scale)
 {
   CHECK_INPUT(a);

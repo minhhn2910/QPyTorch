@@ -265,7 +265,6 @@ __device__ fp16 compute_sigmoid(fp16 p) {
     return p >> 2;
 }
 
-
 //template <typename scalar_t>
 __global__ void posit_kernel_nearest( float* input, float*output, float scale,  size_t input_size) {
   const int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -279,6 +278,8 @@ __global__ void posit_kernel_nearest( float* input, float*output, float scale,  
 
   }
 }
+
+
 
 
 __device__ float new_format_quantize_nearest(float input){

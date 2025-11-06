@@ -1,5 +1,5 @@
 import torch
-from qtorch import Number, FixedPoint, BlockFloatingPoint, FloatingPoint, Posit
+from qtorch import Number, FixedPoint, BlockFloatingPoint, FloatingPoint, Posit, Positbf
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
@@ -51,7 +51,7 @@ if torch.cuda.is_available():
 else:
     quant_cuda = quant_cpu
 
-__all__ = ["fixed_point_quantize", "block_quantize", "float_quantize", "quantizer", "posit_quantize", "convert_to_posit", "posit_sigmoid", "posit_tanh", "posit_tanh_enhanced", "new_format_quantize", "act_format_quantize", "configurable_table_quantize", "configurable_table_quantize_rounding_hint", "configurable_table_quantize_geomean"]
+__all__ = ["fixed_point_quantize", "block_quantize", "float_quantize", "quantizer", "posit_quantize", "bfloat16_posit8_quantize", "convert_to_posit", "posit_sigmoid", "posit_tanh", "posit_tanh_enhanced", "new_format_quantize", "act_format_quantize", "configurable_table_quantize", "configurable_table_quantize_rounding_hint", "configurable_table_quantize_geomean"]
 
 
 def assert_wl_fl(wl, fl, stage=""):
@@ -117,7 +117,7 @@ def quantizer(
                     x, forward_number.man, forward_number.exp
                 )
             elif type(forward_number) == Posit:
-                forward_quant = lambda x, quant_module: quant_module._nearest(
+                forward_quant = lambda x, quant_module: quant_module.posit_quantize_nearest(
                     x, forward_number.nsize, forward_number.es, forward_number.scale
                 )
         elif forward_rounding == "stochastic":
@@ -361,6 +361,32 @@ def posit_quantize(x, nsize, es, scale = 1.0, rounding="nearest"):
         out = quant_module.posit_quantize_nearest(x.contiguous(), nsize, es, scale)
     elif rounding == "stochastic":
         out = quant_module.posit_quantize_nearest(x.contiguous(), nsize, es, scale) #todo; temporarily use nearest rounding at all time
+    else:
+        out = x
+    return out
+
+def bfloat16_posit8_quantize(x, nsize, es, scale = 1.0, rounding="nearest"):
+    """
+    Quantize a bfloat16 Floating Point into 8-bit or lower precision Floating Point
+
+    Args:
+        - :attr: `x` (torch.Tensor) : the bf16 (torch.Tensor) to be quantized
+        - :attr: `nsize` (int) : number of bits allocated for the posit format
+        - :attr: `es` (int) : number of bits allocated for es field (exponent)
+        - :attr: `rounding` (string) : rounding mode, \"stochastic\" or \"nearest\"
+        - default rounding: `nearest` because it is easier to implement on hardware
+        - conventional: posit(8,2): 8 bits posit with 2 bits exponent es
+
+    Returns:
+        - a quantized low-precision posit tensor (torch.Tensor)
+    """
+    assert isinstance(x, torch.Tensor), "x is not an instance of Tensor"
+    assert rounding in ["stochastic", "nearest"], "invalid rounding mode, {}".format(rounding)
+    quant_module = get_module(x)
+    if rounding == "nearest":
+        out = quant_module.bfloat16_posit8_quantize_nearest(x.contiguous(), nsize, es, scale)
+    elif rounding == "stochastic":
+        out = quant_module.bfloat16_posit8_quantize_nearest(x.contiguous(), nsize, es, scale) #todo; temporarily use nearest rounding at all time
     else:
         out = x
     return out
