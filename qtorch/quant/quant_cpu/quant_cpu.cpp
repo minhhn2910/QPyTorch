@@ -389,10 +389,10 @@ float fp16tofp32(fp16 p, uint32_t* int32_constants, uint64_t* int64_constants) {
 	v.ui = p << POSIT_LENGTH_PLUS_ONE;
 	//int regime_length = (__builtin_clz(v.ui) & -!regime_sign) + (__builtin_clz(~v.ui) & -regime_sign);
 	int regime_length;
-	  if(regime_sign)
-	    regime_length = (__builtin_clz(~v.ui));
-	  else
-	    regime_length = (__builtin_clz(v.ui));
+  if(regime_sign)
+    regime_length = (__builtin_clz(~v.ui));
+  else
+    regime_length = (__builtin_clz(v.ui));
 	int regime = (regime_length - regime_sign) << _G_ESIZE;
 	regime = (regime ^ -regime_sign) + regime_sign;
 
@@ -468,34 +468,35 @@ fp16 fp32tofp16(float f,  uint32_t* int32_constants, uint64_t* int64_constants) 
  * @param p the posit to be converted
  * @return the corresponding bfloat16
  */
-uint16_t posit8ToBfloat16(uint8_t p) {
+uint16_t posit8ToBfloat16(uint8_t p, uint32_t* int32_constants, uint64_t* int64_constants) {
   assert(_G_NBITS <= 8);
-
+  
 	// get sign
 	bool sign = p & 0x80;
 	p = (p ^ -sign) + sign;
-
+  
 	// get the regime sign
 	bool regime_sign = p & 0x40;
-
+  
 	// get regime
-	uint16_t bf = p << 9;
+	uint32_t bf_temp = p << 25; // 32 - 8 + 1(sign) 
 	int regime_length;
 	  if(regime_sign)
-	    regime_length = (__builtin_clz(~bf));
+	    regime_length = (__builtin_clz(~bf_temp));
 	  else
-	    regime_length = (__builtin_clz(bf));
-	int regime = (regime_length - regime_sign) << _G_ESIZE;
+	    regime_length = (__builtin_clz(bf_temp));
+  int regime = (regime_length - regime_sign) << _G_ESIZE;
 	regime = (regime ^ -regime_sign) + regime_sign;
 
 	// assemble
+	uint16_t bf = p << (16 - _G_NBITS + 1);
 	bf <<= (regime_length + 1);
 	bf >>= (9 - _G_ESIZE); // sign + exponent = 9 for bfloat16
 	bf += ((SINGLE_PRECISION_BIAS - regime) << 7); //bfloat16 has 7 bits of fraction
-
+  
 	bf ^= (0x7F80 ^ bf) & -(p == 128);
 	bf ^= (0 ^ bf) & -(p == 0);
-
+  
 	bf |= (sign << 15);
 	return bf;
 }
@@ -510,7 +511,7 @@ uint16_t posit8ToBfloat16(uint8_t p) {
  * The exponent and fraction of the bfloat16 are converted to the posit8's regime and exponent
  * and the rest of the bits are copied to the posit8's fraction.
  */
-uint8_t bfloat16ToPosit8(uint16_t bf) {
+uint8_t bfloat16ToPosit8(uint16_t bf, uint32_t* int32_constants, uint64_t* int64_constants) {
   assert(_G_NBITS <= 8);
   uint8_t p = 0;
 	bool sign = bf & 0x8000;
@@ -523,17 +524,17 @@ uint8_t bfloat16ToPosit8(uint16_t bf) {
 	// min posit exponent in 16, 3 is 112
 	// therefore all the float subnormals will be handled
 	// in the previous if statement
-
+  
 	// get exponent sign
 	bool exp_sign = !(bf >> 14);
-
+  
 	//get regime and exponent
 	uint16_t exp = abs((bf >> 7) - 127);
 	uint16_t regime_and_exp = (((1 << ((exp >> _G_ESIZE) + 1)) - 1) << (_G_ESIZE + 1)) | (exp & POSIT_EXPONENT_MASK);
 	//if exponent is negative
 	regime_and_exp = ((regime_and_exp ^ -exp_sign) + exp_sign) >> ((exp_sign & !((exp & POSIT_EXPONENT_MASK))) & (bool) exp);
 	int regime_and_exp_length = (exp >> _G_ESIZE) + 2 + _G_ESIZE - ((exp_sign & !((exp & POSIT_EXPONENT_MASK))) & (bool) exp);
-
+  
 	//assemble
 	regime_and_exp <<= (16 - regime_and_exp_length);
 	regime_and_exp |= ((bf & 0x007f) << (9 - regime_and_exp_length)); // 16 - 7 = 9
@@ -588,17 +589,16 @@ Tensor bfloat16_posit8_quantize_nearest(Tensor a, int nsize, int es, float scale
   uint64_t int64_constants[2];
 
   generate_posit_constants(nsize, es, int32_constants, int64_constants);
-
+  torch::BFloat16 bf16;
   for (int64_t i = 0; i < size; i++)
   {
     auto temp_input = torch::BFloat16(float(a_array[i]) * scale);
-
+    
     uint8_t temp = bfloat16ToPosit8(temp_input.x, int32_constants, int64_constants);
     uint16_t posit = posit8ToBfloat16(temp, int32_constants, int64_constants);
 
-    torch::BFloat16 bf = torch::BFloat16(posit);
-
-    o_array[i] = torch::BFloat16(float(bf) / scale);
+    std::memcpy(&bf16, &posit, sizeof(bf16));
+    o_array[i] = torch::BFloat16(float(bf16) / scale);
   }
 
   return o;
