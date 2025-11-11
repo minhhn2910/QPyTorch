@@ -120,6 +120,10 @@ def quantizer(
                 forward_quant = lambda x, quant_module: quant_module.posit_quantize_nearest(
                     x, forward_number.nsize, forward_number.es, forward_number.scale
                 )
+            elif type(forward_number) == Positbf:
+                forward_quant = lambda x, quant_module: quant_module.bfloat16_posit8_quantize_nearest(
+                    x, forward_number.nsize, forward_number.es, forward_number.scale
+                )
         elif forward_rounding == "stochastic":
             if type(forward_number) == BlockFloatingPoint:
                 forward_quant = lambda x, quant_module: quant_module.block_quantize_stochastic(
@@ -135,6 +139,10 @@ def quantizer(
                 )
             elif type(forward_number) == Posit:
                 forward_quant = lambda x, quant_module: quant_module.posit_quantize_nearest(
+                    x, forward_number.nsize, forward_number.es, forward_number.scale
+                )
+            elif type(forward_number) == Positbf:
+                forward_quant = lambda x, quant_module: quant_module.bfloat16_posit8_quantize_nearest(
                     x, forward_number.nsize, forward_number.es, forward_number.scale
                 )
         else:
@@ -174,6 +182,10 @@ def quantizer(
             backward_quant = lambda a, quant_module: quant_module.posit_quantize_nearest(
                 a, backward_number.nsize, backward_number.es, backward_number.scale
             )
+        elif type(backward_number) == Positbf:
+            backward_quant = lambda a, quant_module: quant_module.bfloat16_posit8_quantize_nearest(
+                a, backward_number.nsize, backward_number.es, backward_number.scale
+            )
         else:
             backward_quant = lambda a, quant_module: a
 
@@ -192,6 +204,10 @@ def quantizer(
             )
         elif type(backward_number) == Posit:
             backward_quant = lambda a, quant_module: quant_module.posit_quantize_nearest(
+                a, backward_number.nsize, backward_number.es, backward_number.scale
+            )
+        elif type(backward_number) == Positbf:
+            backward_quant = lambda a, quant_module: quant_module.bfloat16_posit8_quantize_nearest(
                 a, backward_number.nsize, backward_number.es, backward_number.scale
             )
         else:

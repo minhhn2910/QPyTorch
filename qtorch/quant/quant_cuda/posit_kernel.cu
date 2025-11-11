@@ -174,19 +174,21 @@ __device__ __inline__ uint16_t posit8ToBfloat16_gpu(uint8_t p) {
 	bool regime_sign = p & 0x40;
 
 	// get regime
-	uint16_t bf = p << 9;
+  uint32_t bf_temp = p << 25; // 32 - 8 + 1(sign) 
 	int regime_length;
 	  if(regime_sign)
-	    regime_length = (__clz(~bf));
+	    regime_length = (__clz(~bf_temp));
 	  else
-	    regime_length = (__clz(bf));
-	int regime = (regime_length - regime_sign) << _G_ESIZE;
+	    regime_length = (__clz(bf_temp));
+  int regime = (regime_length - regime_sign) << _G_ESIZE;
 	regime = (regime ^ -regime_sign) + regime_sign;
 
 	// assemble
+  uint16_t bf = p << (16 - _G_NBITS + 1);
 	bf <<= (regime_length + 1);
 	bf >>= (9 - _G_ESIZE); // sign + exponent = 9 for bfloat16
 	bf += ((SINGLE_PRECISION_BIAS - regime) << 7); //bfloat16 has 7 bits of fraction
+  
 
 	bf ^= (0x7F80 ^ bf) & -(p == 128);
 	bf ^= (0 ^ bf) & -(p == 0);
@@ -279,8 +281,13 @@ __global__ void posit_kernel_nearest( float* input, float*output, float scale,  
   }
 }
 
-
-
+__global__ void posit8_bfloat16_kernel_nearest( uint16_t* input, uint16_t*output, float scale,  size_t input_size) {
+  const int index = blockIdx.x * blockDim.x + threadIdx.x;
+  if (index < input_size) {
+    uint8_t temp = bfloat16ToPosit8_gpu(input[index]);
+    output[index] = posit8ToBfloat16_gpu(temp);
+  }
+}
 
 __device__ float new_format_quantize_nearest(float input){
     float constants[32] = {1.0/65536, 1.0/32768, 1.0/16384, 1.0/8192, 1.0/4096, 1.0/2048, 1.0/1024, 1.0/512, 1.0/256, 1.0/128,
@@ -515,6 +522,23 @@ void posit_kernel_nearest_wrapper(float *__restrict__ a,
     cudaMemcpyToSymbol( int64_constants, &int64_constants_host[0], 2 * sizeof( uint64_t ), 0 );
 
     posit_kernel_nearest<<<blockNums, blockSize>>>(a,
+                                                     o,
+                                                     scale,
+                                                     size);
+
+}
+
+void posit8_bfloat16_kernel_nearest_wrapper(uint16_t *__restrict__ a,
+                                    uint16_t *o, int size, int nsize, int es, float scale, int blockNums, int blockSize){
+
+    uint32_t int32_constants_host[11];
+    uint64_t int64_constants_host[2];
+    generate_posit_constants(nsize, es, int32_constants_host, int64_constants_host );
+
+    cudaMemcpyToSymbol( int32_constants, &int32_constants_host[0], 11 * sizeof( uint32_t ), 0 );
+    cudaMemcpyToSymbol( int64_constants, &int64_constants_host[0], 2 * sizeof( uint64_t ), 0 );
+
+    posit8_bfloat16_kernel_nearest<<<blockNums, blockSize>>>(a,
                                                      o,
                                                      scale,
                                                      size);

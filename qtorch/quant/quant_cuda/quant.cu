@@ -150,8 +150,18 @@ Tensor posit_quantize_nearest_cuda(Tensor a, int nsize, int es, float scale) {
 
 Tensor bfloat16_posit8_quantize_nearest_cuda(Tensor a, int nsize, int es, float scale) {
 
-  auto o = zeros_like(a);
-  // @todo
+  auto o = zeros_like(a, kUInt16);
+  int size = a.numel();
+  int blockSize = 1024;
+  int blockNums = (size + blockSize - 1) / blockSize;
+
+  posit8_bfloat16_kernel_nearest_wrapper (a.data_ptr<uint16_t>(),
+                                 o.data_ptr<uint16_t>(),
+                                           size, nsize, es, scale ,
+                                            blockNums,
+                                            blockSize
+                                          );
+
 
 
   return o;
