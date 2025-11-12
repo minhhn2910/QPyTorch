@@ -1,4 +1,4 @@
-__all__ = ["Number", "FixedPoint", "BlockFloatingPoint", "FloatingPoint", "Posit"]
+__all__ = ["Number", "FixedPoint", "BlockFloatingPoint", "FloatingPoint", "Posit", "Positbf"]
 
 
 class Number:
@@ -128,7 +128,31 @@ class Posit(Number):
     def __repr__(self):
         return "Posit (exponent={:d}, wordlength={:d}, scale={:d})".format(self.es, self.nsize, self.scale)
 
-    
+class Positbf(Number):
+    """
+    Low-Precision Posit Format which converts between bfloat16.
+    TODO: Description here
+
+    Args:
+        - :attr: `nsize`: number of bits allocated for the format
+        - :attr: `es`: number of bits allocated for exponent
+        - :attr: `scale`: the scale used for rounding. # explain later
+    """
+
+    def __init__(self, nsize, es, scale=1.0):
+        assert 3 >= es > 0, "invalid bits for exponent:{}".format(es)
+        assert 8 >= nsize > 0, "invalid bits for wordlength:{}".format(nsize)
+        
+        self.nsize = nsize
+        self.es = es
+        self.scale = scale
+
+    def __str__(self):
+        return "Posit (exponent={:d}, wordlength={:d}, scale={:d})".format(self.es, self.nsize, self.scale)
+
+    def __repr__(self):
+        return "Posit (exponent={:d}, wordlength={:d}, scale={:d})".format(self.es, self.nsize, self.scale)
+
     
     
 class BlockFloatingPoint(Number):

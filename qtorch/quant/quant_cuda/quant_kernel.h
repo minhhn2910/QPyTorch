@@ -49,6 +49,9 @@ void configurable_quantize_kernel_rounding_hint_wrapper(float *__restrict__ a,
 void posit_kernel_nearest_wrapper(float *__restrict__ a,
                                     float *o, int size, int nsize, int es, float scale, int blockNums, int blockSize);
 
+void posit8_bfloat16_kernel_nearest_wrapper(uint16_t *__restrict__ a,
+                                    uint16_t *o, int size, int nsize, int es, float scale, int blockNums, int blockSize);
+
 void tanh_kernel_wrapper(float *__restrict__ a,
                                     float *o, int size, int nsize, int es, float scale, int blockNums, int blockSize);
 
